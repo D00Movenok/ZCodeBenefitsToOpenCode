@@ -12,7 +12,6 @@
 // is set before the script loads, and the proof arrives via the success callback.
 
 import { createServer } from "node:http"
-import { fetchCaptchaConfig } from "./shared.ts"
 
 export interface CaptchaProof {
   param: string

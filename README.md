@@ -14,6 +14,7 @@ allow to use free tokens from Start Plan and claim free Gift tokens.
 - Uses the Start Plan subscription
 - Notifications about available gifts (free tokens)
 - Manual gift verification and claiming via `/zai-check-gift` and `/zai-claim-gift`
+- Display usage limits (for both Coding and Start Plans)
 
 ## Install and setup
 

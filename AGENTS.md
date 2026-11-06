@@ -13,9 +13,13 @@ opencode traffic indistinguishable from desktop-client traffic. Read
   integration, provider self-registration, gift ticker (announce only).
   Default export must stay `{ id: "zcode-benefits", setup }` (the loader
   rejects anything else).
-- `tui.ts` — TUI entry: client-side `/zai-check-gift` and `/zai-claim-gift`
-  keymap commands with dialogs. Auto-loaded because the server advertises
-  `features.tui` (package.json exports `"./tui"`). Zero model involvement.
+- `tui.tsx` — TUI entry: client-side `/zai-check-gift` and `/zai-claim-gift`
+  keymap commands with dialogs + the sidebar usage-limit cards (`ui.slot` on
+  `sidebar.content`, shown only while a z.ai plan model is selected). Auto-loaded
+  because the server advertises `features.tui` (package.json exports `"./tui"`).
+  Solid JSX compiles via `tsconfig.json` (`jsxImportSource: "@opentui/solid"`);
+  the TUI runtime maps `solid-js`/`@opentui/solid` imports to the host instances.
+  Zero model involvement.
 - `shared.ts` — constants, deviceMid, gateway fetch, gift helpers — used by
   BOTH entries.
 - `captcha.ts` — Aliyun widget page + local proof server + proof store.
@@ -67,12 +71,21 @@ opencode traffic indistinguishable from desktop-client traffic. Read
 12. **TUI dialogs live under `context.ui.dialog`** (not `context.dialog`) for
     external plugins; the captcha link is shown in a dialog — never
     auto-open the browser.
-13. **Transient gateway errors** (3008 user / 3009 model concurrency limits)
+13. **Sidebar cards are plan-scoped**: render only while
+    `context.ui.model.current().providerID` is `zai-coding-plan` (quota windows
+    from `api.z.ai/api/monitor/usage/quota/limit`, the RAW API key in
+    `authorization` — no Bearer; accept BOTH `CREDIT_LIMIT` and `TOKENS_LIMIT`
+    metering — a credit-metered account returns no `TOKENS_LIMIT` rows, and
+    `usage` there is the window ALLOWANCE, not spend) or `zai-start-plan`
+    (per-bucket `remaining_units` from billing/balance — never
+    `available_units`; unit counts arrive as numbers or numeric strings). The
+    quota endpoint's `percentage` is the USED share — invert it for "left".
+14. **Transient gateway errors** (3008 user / 3009 model concurrency limits)
     are rewritten to **HTTP 429 rate-limit shape** in `http.response`, so the
     core retries natively with its own backoff and the standard orange status
     line. Do not re-implement a fetch-retry loop; permanent codes (1005 quota,
     3007 captcha) surface as visible 400s.
-14. **The plan lane is enforced at `http.request`**, not `model.request`:
+15. **The plan lane is enforced at `http.request`**, not `model.request`:
     for ai-sdk providers the model.request `baseURL` rewrite does not reach
     the SDK-built URL — ultra-zai requests are redirected to the plan lane in
     `http.request` before the auth/system rewrite.

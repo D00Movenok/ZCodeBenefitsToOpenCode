@@ -24,14 +24,15 @@
  "exports": {
   ".": "./zcode-benefits.ts",
   "./plugin": "./zcode-benefits.ts",
-  "./tui": "./tui.ts"
+  "./tui": "./tui.tsx"
  },
  "files": [
-  "tui.ts",
+  "tui.tsx",
   "shared.ts",
   "captcha.ts",
   "zcode-benefits.ts",
   "zcode-system.json",
+  "tsconfig.json",
   "README.md"
  ],
  "publishConfig": {

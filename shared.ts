@@ -1,10 +1,10 @@
 // shared.ts — constants and helpers used by both parts of the plugin:
-// zcode-benefits.ts (server) and tui.ts (TUI commands). No setup logic here.
+// zcode-benefits.ts (server) and tui.tsx (TUI commands and cards). No setup logic here.
 
 import { randomUUID } from "node:crypto"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { spawn } from "node:child_process"
-import { homedir, platform } from "node:os"
+import { arch, homedir, platform } from "node:os"
 import { dirname, join } from "node:path"
 
 // ── constants ──
@@ -170,10 +170,96 @@ export async function reportCampaignAction(
   } catch {}
 }
 
-// ── captcha config (sceneId/prefix/region come from the account's client/configs) ──
+// ── client/configs: the account's remote configuration (captcha params, provider rules) ──
 
+// The raw envelope. Callers apply their own validation: the request-verification
+// gate is fail-closed, the captcha page and the catalog degrade gracefully.
+export async function fetchClientConfigs(): Promise<any> {
+  const url = `${ZCODE_ORIGIN}/api/v1/client/configs?app_version=${APP_VERSION}&platform=${platform()}-${arch()}`
+  return (await gatewayFetch(url, { headers: { "User-Agent": `ZCode/${APP_VERSION}` } })).json
+}
+
+// Captcha widget params (sceneId/prefix/region) for the local verification page.
 export async function fetchCaptchaConfig(): Promise<any> {
-  const url = `${ZCODE_ORIGIN}/api/v1/client/configs?app_version=${APP_VERSION}&platform=${platform()}-x64`
-  const r = await gatewayFetch(url, { headers: { "User-Agent": `ZCode/${APP_VERSION}` } })
-  return r.json?.data?.configs?.captcha ?? {}
+  return (await fetchClientConfigs())?.data?.configs?.captcha ?? {}
+}
+
+// ── usage limits ──
+// Coding Plan (API token): GET api.z.ai/api/monitor/usage/quota/limit — the monitor
+// endpoint wants the RAW key in `authorization` (no Bearer prefix). Limits carry
+// windows: unit 3 + number 5 = five-hour, unit 6 = weekly; each has `remaining`,
+// `percentage` (the USED share) and `nextResetTime` (ms). Depending on the plan
+// level the metering is CREDIT_LIMIT (`usage` is the window ALLOWANCE, values are
+// credits) or TOKENS_LIMIT (token metering).
+export interface CodingPlanWindow {
+  type: string
+  unit: number
+  number?: number
+  remaining?: number
+  usage?: number
+  percentage?: number
+  nextResetTime?: number
+}
+
+export async function fetchCodingPlanQuota(apiKey: string): Promise<CodingPlanWindow[]> {
+  const r = await gatewayFetch("https://api.z.ai/api/monitor/usage/quota/limit", {
+    headers: { authorization: apiKey },
+  })
+  const payload = r.json?.data ?? r.json
+  if (r.json?.code !== undefined && r.json.code !== 0 && r.json.code !== 200) {
+    throw new Error(`quota/limit failed: code=${r.json.code} ${r.json.msg ?? ""}`)
+  }
+  return (Array.isArray(payload?.limits) ? payload.limits : [])
+    .filter((l: any) => l?.type === "TOKENS_LIMIT" || l?.type === "CREDIT_LIMIT")
+    .map((l: any) => ({
+      type: String(l.type),
+      unit: l.unit,
+      ...(typeof l.number === "number" ? { number: l.number } : {}),
+      ...(typeof l.remaining === "number" ? { remaining: l.remaining } : {}),
+      ...(typeof l.usage === "number" ? { usage: l.usage } : {}),
+      ...(typeof l.percentage === "number" ? { percentage: l.percentage } : {}),
+      ...(typeof l.nextResetTime === "number" ? { nextResetTime: l.nextResetTime } : {}),
+    }))
+}
+
+// Start Plan (JWT): billing/balance also returns `data.balances[]` — per-entitlement
+// token buckets with the models they apply to. `remaining_units` is the display
+// remaining (available_units additionally subtracts reserved, do not use it).
+export interface StartPlanBalance {
+  showName: string
+  capabilities: string[]
+  remaining?: number
+  total?: number
+  used?: number
+  expiresAt?: number
+}
+
+// The balance endpoint delivers unit counts as numbers or numeric strings.
+function parseUnits(value: any): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value)
+  return undefined
+}
+
+export async function fetchStartPlanBalances(jwt: string, mid: string): Promise<StartPlanBalance[]> {
+  const r = await gatewayFetch(`${ZCODE_ORIGIN}/api/v1/zcode-plan/billing/balance?app_version=${APP_VERSION}`, {
+    headers: giftHeaders(jwt, mid),
+  })
+  if (r.json?.code !== 0) throw new Error(`billing/balance failed: code=${r.json?.code ?? r.status} ${r.json?.msg ?? ""}`)
+  return (Array.isArray(r.json?.data?.balances) ? r.json.data.balances : [])
+    .map((b: any) => {
+      const remaining = parseUnits(b?.remaining_units)
+      const total = parseUnits(b?.total_units)
+      const used = parseUnits(b?.used_units)
+      if (remaining === undefined && total === undefined && used === undefined) return undefined
+      return {
+        showName: String(b?.show_name ?? "").slice(0, 80),
+        capabilities: Array.isArray(b?.capabilities) ? b.capabilities.map(String) : [],
+        ...(remaining !== undefined ? { remaining } : {}),
+        ...(total !== undefined ? { total } : {}),
+        ...(used !== undefined ? { used } : {}),
+        ...(typeof b?.expires_at === "number" ? { expiresAt: b.expires_at * 1000 } : {}),
+      }
+    })
+    .filter((b: any): b is StartPlanBalance => b !== undefined)
 }

@@ -23,7 +23,7 @@
 // No ZCode desktop files (~/.zcode) are read or written.
 //
 // Shared helpers (constants, deviceMid, gateway fetch, gifts, captcha) live in
-// shared.ts and captcha.ts — imported by both this entry and tui.ts.
+// shared.ts and captcha.ts — imported by both this entry and tui.tsx.
 
 import { randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"
@@ -35,8 +35,10 @@ import {
   APP_VERSION,
   CONFIG_HEADERS,
   deviceMid,
+  fetchClientConfigs,
   fetchGiftClaims,
   gatewayFetch,
+  giftHeaders,
   notify,
   PROVIDER_ID,
   ZCODE_ORIGIN,
@@ -87,8 +89,7 @@ async function fetchVerificationConfig(): Promise<Record<string, unknown> | null
     return verificationConfig.cfg
   }
   try {
-    const url = `${ZCODE_ORIGIN}/api/v1/client/configs?app_version=${APP_VERSION}&platform=${platform()}-${arch()}`
-    const json: any = await fetch(url, { headers: { "User-Agent": `ZCode/${APP_VERSION}` } }).then((r) => r.json())
+    const json: any = await fetchClientConfigs()
     if (!json || (json.code !== undefined && json.code !== 0)) throw new Error("client/configs envelope invalid")
     verificationConfig = { cfg: readRequestVerificationConfig(json.data?.configs), at: Date.now() }
   } catch (e: any) {
@@ -239,22 +240,12 @@ async function oauthAuthorize(): Promise<any> {
 type CatalogEntry = { id: string; name: string; context: number; output: number }
 let giftCatalog: CatalogEntry[] | null = null
 
-function billingHeaders(jwt: string, mid: string) {
-  return {
-    "X-Device-Mid": mid,
-    "X-Client-Language": "en-US",
-    "X-ZCode-App-Version": APP_VERSION,
-    "User-Agent": `ZCode/${APP_VERSION}`,
-    Authorization: `Bearer ${jwt}`,
-  }
-}
-
 // Entitled models = "model:*" capabilities from active plans with effective_at passed;
 // limits come from the first modelMatch hit in the CDN config; personal enabled=false entries are dropped.
 async function fetchGiftCatalog(): Promise<CatalogEntry[]> {
   const [jwt, mid] = await Promise.all([resolveZjwt(), deviceMid()])
   const balance = await gatewayFetch(`${ZCODE_ORIGIN}/api/v1/zcode-plan/billing/balance?app_version=${APP_VERSION}`, {
-    headers: billingHeaders(jwt, mid),
+    headers: giftHeaders(jwt, mid),
   })
   const nowSec = Math.floor(Date.now() / 1000)
   const entitled = new Set<string>()
@@ -272,10 +263,8 @@ async function fetchGiftCatalog(): Promise<CatalogEntry[]> {
   let rules: any[] = []
   const disabled = new Set<string>()
   try {
-    const cc = await gatewayFetch(`${ZCODE_ORIGIN}/api/v1/client/configs?app_version=${APP_VERSION}&platform=${platform()}-${arch()}`, {
-      headers: { "User-Agent": `ZCode/${APP_VERSION}` },
-    })
-    const cfgUrl = cc.json?.data?.configs?.builtin_provider_config_json
+    const cc = await fetchClientConfigs()
+    const cfgUrl = cc?.data?.configs?.builtin_provider_config_json
     if (typeof cfgUrl === "string" && cfgUrl.startsWith("http")) {
       const cfg = await gatewayFetch(cfgUrl, { headers: { "User-Agent": `ZCode/${APP_VERSION}` } })
       const c = cfg.json?.config ?? cfg.json
