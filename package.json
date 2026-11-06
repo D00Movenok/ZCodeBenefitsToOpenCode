@@ -1,0 +1,40 @@
+{
+ "name": "@d00movenok/zcode-benefits",
+ "version": "1.0.0",
+ "description": "Z.AI Start Plan for opencode: ZCode desktop wire format (auth, system, headers), z.ai OAuth login, dynamic gift-model catalog, promo ticker",
+ "keywords": [
+  "opencode-plugin",
+  "opencode",
+  "zcode",
+  "zai",
+  "start-plan"
+ ],
+ "author": "Georgii Gennadev",
+ "license": "MIT",
+ "repository": {
+  "type": "git",
+  "url": "git+https://github.com/D00Movenok/ZCodeBenefitsToOpenCode.git"
+ },
+ "homepage": "https://github.com/D00Movenok/ZCodeBenefitsToOpenCode#readme",
+ "bugs": {
+  "url": "https://github.com/D00Movenok/ZCodeBenefitsToOpenCode/issues"
+ },
+ "type": "module",
+ "main": "./zcode-benefits.ts",
+ "exports": {
+  ".": "./zcode-benefits.ts",
+  "./plugin": "./zcode-benefits.ts",
+  "./tui": "./tui.ts"
+ },
+ "files": [
+  "tui.ts",
+  "shared.ts",
+  "captcha.ts",
+  "zcode-benefits.ts",
+  "zcode-system.json",
+  "README.md"
+ ],
+ "publishConfig": {
+  "access": "public"
+ }
+}
