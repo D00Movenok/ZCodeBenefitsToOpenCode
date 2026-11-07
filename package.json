@@ -1,5 +1,5 @@
 {
- "name": "@d00movenok/zcode-benefits",
+ "name": "@d00movenok/ZCodeBenefitsToOpenCode",
  "version": "1.0.0",
  "description": "Z.AI Start Plan for opencode: ZCode desktop wire format (auth, system, headers), z.ai OAuth login, dynamic gift-model catalog, promo ticker",
  "keywords": [

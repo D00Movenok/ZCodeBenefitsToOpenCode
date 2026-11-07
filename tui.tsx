@@ -109,6 +109,14 @@ function resetText(nextResetTime: number | undefined): string {
   return today ? `, resets ${time}` : `, resets ${at.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`
 }
 
+// Start Plan bucket deadline; the year is only shown when it differs from the current one.
+function expiryText(expiresAt: number | undefined): string {
+  if (!expiresAt) return ""
+  const at = new Date(expiresAt)
+  const day = at.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return at.getFullYear() === new Date().getFullYear() ? `, until ${day}` : `, until ${day}, ${at.getFullYear()}`
+}
+
 // Coding Plan window line: absolute remaining out of the window allowance when
 // the endpoint provides both (CREDIT_LIMIT), else the "left" percentage.
 function limitRow(w: CodingPlanWindow): string {
@@ -181,7 +189,7 @@ function LimitsCard(props: { context: any }) {
                           b.remaining !== undefined
                             ? `${formatTokens(b.remaining)} / ${formatTokens(b.total)} tokens`
                             : `${formatTokens(b.used)} used`
-                        return <text fg={theme.text.muted}>{label}: {left}</text>
+                        return <text fg={theme.text.muted}>{label}: {left}{expiryText(b.expiresAt)}</text>
                       }}
                     </For>
                   </Show>
